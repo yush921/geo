@@ -80,6 +80,22 @@ const shapes: Shape[] = features.map((f) => {
   };
 });
 
+/** 経度緯度 → 地図上の座標(沖縄県内は左上の枠に描く) */
+export function project(lon: number, lat: number, regionId?: string): [number, number] | null {
+  return (regionId === 'jp-47' ? insetProj : mainProj)([lon, lat]);
+}
+
+export type PinKind = 'capital' | 'designated' | 'major' | '観光' | '遺産';
+
+export interface Pin {
+  id: string;
+  lon: number;
+  lat: number;
+  regionId: string;
+  kind: PinKind;
+  label: string;
+}
+
 export interface JapanMapProps {
   selected?: string | null;
   onSelect?: (regionId: string) => void;
@@ -88,10 +104,22 @@ export interface JapanMapProps {
   /** クイズの正誤表示など */
   marks?: Record<string, 'ok' | 'ng' | 'hint'>;
   showLabels?: boolean;
+  pins?: Pin[];
+  activePin?: string | null;
+  onPinClick?: (pin: Pin) => void;
   /** これが変わると表示位置をリセットする */
   resetKey?: unknown;
   ariaLabel?: string;
 }
+
+/** ピンの大きさ(画面上のpx)と、ラベルを出し始める拡大率 */
+const PIN_STYLE: Record<PinKind, { r: number; labelAt: number }> = {
+  capital: { r: 4, labelAt: 1.8 },
+  designated: { r: 3.2, labelAt: 2.6 },
+  major: { r: 2.6, labelAt: 3.4 },
+  観光: { r: 3.6, labelAt: 4 },
+  遺産: { r: 3.6, labelAt: 4 },
+};
 
 export default function JapanMap({
   selected,
@@ -99,17 +127,22 @@ export default function JapanMap({
   fill,
   marks,
   showLabels = true,
+  pins,
+  activePin,
+  onPinClick,
   resetKey,
   ariaLabel = '日本地図',
 }: JapanMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const [t, setT] = useState({ x: 0, y: 0, k: 1 });
+  // 画面上の1px が地図座標でいくつになるか(スマホでも文字やピンが小さくなりすぎないように)
+  const [pxScale, setPxScale] = useState(1);
 
   useEffect(() => {
     const svg = svgRef.current!;
     const z = zoom<SVGSVGElement, unknown>()
-      .scaleExtent([1, 12])
+      .scaleExtent([1, 14])
       .translateExtent([
         [-100, -100],
         [W + 100, H + 100],
@@ -117,8 +150,15 @@ export default function JapanMap({
       .on('zoom', (e) => setT({ x: e.transform.x, y: e.transform.y, k: e.transform.k }));
     zoomRef.current = z;
     select(svg).call(z).on('dblclick.zoom', null);
+    const ro = new ResizeObserver(() => {
+      const r = svg.getBoundingClientRect();
+      const s = Math.min(r.width / W, r.height / H);
+      if (s > 0) setPxScale(1 / s);
+    });
+    ro.observe(svg);
     return () => {
       select(svg).on('.zoom', null);
+      ro.disconnect();
     };
   }, []);
 
@@ -141,17 +181,22 @@ export default function JapanMap({
     return [...shapes.filter((s) => !top.has(s.regionId)), ...shapes.filter((s) => top.has(s.regionId))];
   }, [selected, marks]);
 
-  const labelMin = 2.2; // この倍率以上でラベルを出す
+  const projected = useMemo(
+    () =>
+      (pins ?? [])
+        .map((p) => ({ pin: p, xy: project(p.lon, p.lat, p.regionId) }))
+        .filter((x): x is { pin: Pin; xy: [number, number] } => x.xy !== null)
+        // 小さいピンを先に、県庁所在地を最後に描く
+        .sort((a, b) => PIN_STYLE[a.pin.kind].r - PIN_STYLE[b.pin.kind].r),
+    [pins],
+  );
+
+  const u = pxScale / t.k; // 画面上の1px に相当する地図座標
+  const prefLabelAt = pins?.length ? 3 : 2.2;
 
   return (
     <div className="map-wrap">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
-        className="japan-map"
-        role="img"
-        aria-label={ariaLabel}
-      >
+      <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="japan-map" role="img" aria-label={ariaLabel}>
         <g transform={`translate(${t.x},${t.y}) scale(${t.k})`}>
           <rect
             x={INSET.x}
@@ -159,7 +204,7 @@ export default function JapanMap({
             width={INSET.w}
             height={INSET.h}
             className="inset-frame"
-            style={{ strokeWidth: 1.5 / t.k }}
+            style={{ strokeWidth: 1 * u }}
           />
           {ordered.map((s) => {
             const mark = marks?.[s.regionId];
@@ -171,7 +216,10 @@ export default function JapanMap({
                 key={s.code}
                 d={s.d}
                 className={cls}
-                style={{ fill: mark ? undefined : fill?.(s.regionId), strokeWidth: (selected === s.regionId || mark ? 2.4 : 0.8) / t.k }}
+                style={{
+                  fill: mark ? undefined : fill?.(s.regionId),
+                  strokeWidth: (selected === s.regionId || mark ? 2 : 0.6) * u,
+                }}
                 onClick={() => onSelect?.(s.regionId)}
               >
                 <title>{showLabels ? regionByMapCode.get(s.code)!.name.ja : ''}</title>
@@ -179,18 +227,47 @@ export default function JapanMap({
             );
           })}
           {showLabels &&
-            t.k >= labelMin &&
+            t.k >= prefLabelAt &&
             shapes.map((s) => (
               <text
                 key={`l${s.code}`}
                 x={s.label[0]}
                 y={s.label[1]}
                 className="pref-label"
-                style={{ fontSize: 13 / t.k, strokeWidth: 3 / t.k }}
+                style={{ fontSize: 12 * u, strokeWidth: 3 * u }}
               >
                 {regionByMapCode.get(s.code)!.name.ja.replace(/[県府都]$/, '')}
               </text>
             ))}
+          {projected.map(({ pin, xy }) => {
+            const st = PIN_STYLE[pin.kind];
+            const active = activePin === pin.id;
+            const r = (active ? st.r * 1.5 : st.r) * u;
+            return (
+              <g
+                key={pin.id}
+                className={`pin pin-${pin.kind} ${active ? 'is-active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPinClick?.(pin);
+                }}
+              >
+                {/* タップしやすいよう、見た目より大きい透明な当たり判定 */}
+                <circle cx={xy[0]} cy={xy[1]} r={Math.max(r, 11 * u)} className="pin-hit" />
+                {pin.kind === '遺産' ? (
+                  <rect x={xy[0] - r} y={xy[1] - r} width={r * 2} height={r * 2} transform={`rotate(45 ${xy[0]} ${xy[1]})`} style={{ strokeWidth: 1.2 * u }} />
+                ) : (
+                  <circle cx={xy[0]} cy={xy[1]} r={r} style={{ strokeWidth: (pin.kind === 'capital' ? 2 : 1.2) * u }} />
+                )}
+                {(t.k >= st.labelAt || active) && (
+                  <text x={xy[0] + r + 3 * u} y={xy[1]} className="pin-label" style={{ fontSize: (pin.kind === 'capital' ? 12 : 11) * u, strokeWidth: 3 * u }}>
+                    {pin.label}
+                  </text>
+                )}
+                <title>{pin.label}</title>
+              </g>
+            );
+          })}
         </g>
       </svg>
       <div className="map-tools">

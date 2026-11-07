@@ -22,6 +22,8 @@
   --a7: #8f7ad0;
   --a8: #d65b5b;
   --radius: 12px;
+  --pin-city: #ffffff;
+  --pin-stroke: #ffffff;
   color-scheme: light;
 }
 
@@ -38,6 +40,8 @@
     --sea: #17232b;
     --land: #2a2f33;
     --border: #5c656b;
+    --pin-city: #e8e6e1;
+    --pin-stroke: #15181b;
     color-scheme: dark;
   }
 }
@@ -623,4 +627,159 @@ button.on {
   .split--small-map .japan-map {
     max-height: 38dvh;
   }
+}
+
+/* ---------- pins ---------- */
+.pin {
+  cursor: pointer;
+}
+.pin-hit {
+  fill: transparent;
+  stroke: none;
+}
+.pin circle:not(.pin-hit),
+.pin rect {
+  stroke: var(--pin-stroke);
+}
+.pin-capital circle:not(.pin-hit) {
+  fill: var(--pin-city);
+  stroke: var(--text);
+}
+.pin-designated circle:not(.pin-hit),
+.pin-major circle:not(.pin-hit) {
+  fill: var(--pin-city);
+  stroke: var(--muted);
+}
+.pin-観光 circle:not(.pin-hit) {
+  fill: var(--a1);
+}
+.pin-遺産 rect {
+  fill: var(--a4);
+}
+.pin.is-active circle:not(.pin-hit),
+.pin.is-active rect {
+  fill: var(--hint);
+}
+.pin-label {
+  dominant-baseline: middle;
+  fill: var(--text);
+  stroke: var(--land);
+  paint-order: stroke;
+  font-weight: 600;
+  pointer-events: none;
+}
+.pin-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 0.82rem;
+}
+.pin-legend label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.pin-legend input {
+  accent-color: var(--accent);
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text);
+  background: var(--pin-city);
+}
+.dot.s {
+  border-color: var(--pin-stroke);
+  background: var(--a1);
+}
+.dot.h {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+  border-color: var(--pin-stroke);
+  background: var(--a4);
+}
+
+/* ---------- spots ---------- */
+.spot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.spot {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  padding: 0;
+  min-height: 0;
+  cursor: pointer;
+}
+.spot.is-active {
+  outline: 3px solid var(--hint);
+  outline-offset: -1px;
+}
+.spot-img {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  object-fit: cover;
+  background: var(--surface-2);
+  display: block;
+}
+.spot-body {
+  padding: 8px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.spot-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+.spot-desc {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.spot.is-locked .spot-img {
+  filter: grayscale(1) opacity(0.5);
+}
+.credit {
+  font-size: 0.7rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.credit a {
+  color: inherit;
+}
+.spot-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.spot-detail img {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.quiz-photo {
+  width: 100%;
+  max-height: 52dvh;
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.zukan-pref {
+  margin-top: 6px;
+}
+.zukan-pref h4 {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
 }

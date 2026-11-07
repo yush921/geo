@@ -58,3 +58,37 @@ export interface Neta {
   /** 人の目で事実確認済みか(AI 下書きは false) */
   reviewed: boolean;
 }
+
+export type SpotCategory = '観光' | '遺産' | '名産';
+
+export interface SpotImage {
+  thumb: string; // Wikimedia のサムネイル URL(元データ)
+  src?: string; // アプリに同梱した縮小版(public/photos/)
+  page: string; // Commons のファイルページ
+  license: string;
+  artist: string;
+}
+
+/** 観光地・遺産・名産品 */
+export interface Spot {
+  id: string; // 例: "jp-26-s1"
+  regionId: string;
+  category: SpotCategory;
+  name: string;
+  desc: string;
+  wiki: string; // Wikipedia の記事名
+  lat?: number; // 名産品は座標なし(地図にピンを出さない)
+  lon?: number;
+  image?: SpotImage;
+}
+
+export type CityKind = 'capital' | 'designated' | 'major';
+
+export interface City {
+  id: string;
+  regionId: string;
+  name: string;
+  kind: CityKind;
+  lat: number;
+  lon: number;
+}

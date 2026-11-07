@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import JapanMap from '../components/JapanMap';
+import { Credit, photoUrl } from '../components/SpotCard';
+import { spotById } from '../data/places';
 import { AREAS, capitalDiffers, netaById, netasOf, prefectures, regionById } from '../data';
 import { makeQuiz, pick, type Question, type QuizMode } from '../lib/quiz';
 import { getUserData, recordAnswer, toggleFavorite, useUserData } from '../lib/store';
@@ -8,13 +10,14 @@ const MODES: { id: QuizMode; label: string; desc: string }[] = [
   { id: 'loc', label: '位置当て', desc: '地図をタップして答える' },
   { id: 'cap', label: '県庁所在地', desc: `県名と違う${prefectures.filter(capitalDiffers).length}道県` },
   { id: 'neta', label: 'ネタ当て', desc: 'どこの話か当てる' },
+  { id: 'photo', label: '写真当て', desc: '観光地・遺産・名産品の写真がどこのものか当てる' },
 ];
 
 type Answer = { chosen: string; ok: boolean };
 
 export default function QuizPage() {
   const d = useUserData();
-  const [modes, setModes] = useState<QuizMode[]>(['loc', 'cap', 'neta']);
+  const [modes, setModes] = useState<QuizMode[]>(['loc', 'cap', 'neta', 'photo']);
   const [area, setArea] = useState('all');
   const [qs, setQs] = useState<Question[] | null>(null);
   const [i, setI] = useState(0);
@@ -40,6 +43,10 @@ export default function QuizPage() {
   const followNeta = useMemo(() => {
     if (!q) return undefined;
     if (q.netaId) return netaById.get(q.netaId);
+    if (q.spotId) {
+      const sp = spotById.get(q.spotId)!;
+      return { id: '', oneLiner: sp.name, detail: sp.desc };
+    }
     return pick(netasOf(q.regionId));
   }, [q]);
 
@@ -97,7 +104,7 @@ export default function QuizPage() {
         <ul className="result-list">
           {qs.map((x, k) => (
             <li key={x.key} className={answers[k]?.ok ? 'ok' : 'ng'}>
-              {answers[k]?.ok ? '○' : '×'} {x.mode === 'neta' ? x.prompt : x.prompt.replace('?', '')}
+              {answers[k]?.ok ? '○' : '×'} {x.mode === 'photo' ? `写真: ${spotById.get(x.spotId!)?.name}` : x.mode === 'neta' ? x.prompt : x.prompt.replace('?', '')}
               <span className="muted"> → {x.mode === 'cap' ? regionById.get(x.regionId)?.capital?.ja : regionById.get(x.regionId)?.name.ja}</span>
             </li>
           ))}
@@ -115,6 +122,7 @@ export default function QuizPage() {
   }
 
   const correct = regionById.get(q.regionId)!;
+  const spot = q.spotId ? spotById.get(q.spotId) : undefined;
   const marks: Record<string, 'ok' | 'ng' | 'hint'> = {};
   if (ans) {
     marks[q.regionId] = 'ok';
@@ -133,6 +141,18 @@ export default function QuizPage() {
           <p className="quiz-prompt">{q.prompt}</p>
           {q.sub && <p className="muted small">{q.sub}</p>}
         </div>
+        {q.spotId && spot?.image && (
+          <figure style={{ margin: 0 }}>
+            <img className="quiz-photo" src={photoUrl(spot.image)} alt="クイズの写真" />
+            {ans && (
+              <figcaption>
+                <p className="neta-one">{spot.name}</p>
+                <Credit image={spot.image} />
+              </figcaption>
+            )}
+          </figure>
+        )}
+        {(q.mode !== 'photo' || ans) && (
         <JapanMap
           onSelect={q.mode === 'loc' ? answer : undefined}
           marks={marks}
@@ -140,6 +160,7 @@ export default function QuizPage() {
           resetKey={q.key}
           ariaLabel="クイズ用の日本地図"
         />
+        )}
       </section>
       <section className="split-panel">
         {q.choices && (
@@ -165,9 +186,11 @@ export default function QuizPage() {
                 <p className="muted small">💡 人に話したくなる一言({correct.name.ja})</p>
                 <p className="neta-one">{followNeta.oneLiner}</p>
                 <p className="neta-detail">{followNeta.detail}</p>
-                <button type="button" className="ghost" onClick={() => toggleFavorite(followNeta.id)}>
-                  {d.favorites.includes(followNeta.id) ? '★ ネタ帳に追加済み' : '☆ ネタ帳に追加'}
-                </button>
+                {followNeta.id && (
+                  <button type="button" className="ghost" onClick={() => toggleFavorite(followNeta.id)}>
+                    {d.favorites.includes(followNeta.id) ? '★ ネタ帳に追加済み' : '☆ ネタ帳に追加'}
+                  </button>
+                )}
               </div>
             )}
             <button type="button" className="primary big" onClick={() => setI(i + 1)} autoFocus>

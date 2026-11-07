@@ -1,8 +1,9 @@
 import type { Region } from '../types';
+import { spots, spotsOf } from '../data/places';
 import { capitalDiffers, netas, netasOf, prefectures, regionById, shortName } from '../data';
 import type { UserData } from './store';
 
-export type QuizMode = 'loc' | 'cap' | 'neta';
+export type QuizMode = 'loc' | 'cap' | 'neta' | 'photo';
 
 export interface Question {
   key: string; // SRS キー
@@ -12,6 +13,7 @@ export interface Question {
   sub?: string;
   choices?: { label: string; regionId: string }[]; // 4択の場合
   netaId?: string;
+  spotId?: string;
 }
 
 export const shuffle = <T,>(a: T[]): T[] => {
@@ -30,6 +32,9 @@ export function keysOf(r: Region): string[] {
   const keys = [`loc:${r.id}`];
   if (capitalDiffers(r)) keys.push(`cap:${r.id}`);
   netasOf(r.id).forEach((n) => keys.push(`neta:${n.id}`));
+  spotsOf(r.id)
+    .filter((s) => s.image)
+    .forEach((s) => keys.push(`photo:${s.id}`));
   return keys;
 }
 
@@ -63,6 +68,14 @@ function build(key: string): Question | null {
     const choices = shuffle([r, ...others]).map((p) => ({ label: p.capital!.ja, regionId: p.id }));
     return { key, mode, regionId: id, prompt: `${r.name.ja}の県庁所在地は?`, choices };
   }
+  if (mode === 'photo') {
+    const sp = spots.find((x) => x.id === id);
+    if (!sp?.image) return null;
+    const r = regionById.get(sp.regionId)!;
+    const choices = shuffle([r, ...distractors(r, 3)]).map((p) => ({ label: p.name.ja, regionId: p.id }));
+    const hint = sp.category === '名産' ? 'この名産品はどこのもの?' : 'この写真はどこ?';
+    return { key, mode, regionId: r.id, prompt: hint, choices, spotId: sp.id };
+  }
   const n = netas.find((x) => x.id === id);
   if (!n) return null;
   const r = regionById.get(n.targets[0])!;
@@ -78,6 +91,10 @@ export function makeQuiz(d: UserData, modes: QuizMode[], area: string, count = 1
     if (modes.includes('loc')) keys.push(`loc:${r.id}`);
     if (modes.includes('cap') && capitalDiffers(r)) keys.push(`cap:${r.id}`);
     if (modes.includes('neta')) netasOf(r.id).forEach((n) => keys.push(`neta:${n.id}`));
+    if (modes.includes('photo'))
+      spotsOf(r.id)
+        .filter((s) => s.image)
+        .forEach((s) => keys.push(`photo:${s.id}`));
   }
   const now = Date.now();
   const due = shuffle(keys.filter((k) => d.srs[k] && d.srs[k].due <= now)).sort(
