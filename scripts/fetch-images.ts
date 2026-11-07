@@ -27,6 +27,24 @@ async function download(url: string): Promise<Buffer> {
   throw new Error('retry exceeded');
 }
 
+/**
+ * 元画像(upload.wikimedia.org)はアクセス制限されやすいので、
+ * 先にサムネイル配信(thumb.wikimedia.org)の縮小版を試す。元画像より大きい幅は作れないので順に小さくする
+ */
+async function downloadAny(url: string): Promise<Buffer> {
+  const m = url.match(/^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(\w\/\w\w)\/([^/?]+)$/);
+  if (m) {
+    for (const w of [500, 400, 320, 250]) {
+      try {
+        return await download(`https://thumb.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/${w}px-${m[2]}`);
+      } catch {
+        /* 次の幅を試す */
+      }
+    }
+  }
+  return download(url);
+}
+
 async function main() {
   mkdirSync(DIR, { recursive: true });
   const data = JSON.parse(readFileSync(JSON_PATH, 'utf8'));
@@ -45,7 +63,7 @@ async function main() {
     const path = `${DIR}/${name}`;
     if (!existsSync(path)) {
       try {
-        const buf = await download(e.image.thumb);
+        const buf = await downloadAny(e.image.thumb);
         await sharp(buf).rotate().resize({ width: 560, height: 560, fit: 'inside', withoutEnlargement: true }).webp({ quality: 70 }).toFile(path);
         saved++;
         if (saved % 20 === 0) console.log(`保存 ${saved}件`);
