@@ -114,7 +114,7 @@ export interface JapanMapProps {
 
 /** ピンの大きさ(画面上のpx)と、ラベルを出し始める拡大率 */
 const PIN_STYLE: Record<PinKind, { r: number; labelAt: number }> = {
-  capital: { r: 4, labelAt: 1.8 },
+  capital: { r: 3.4, labelAt: 1.8 },
   designated: { r: 3.2, labelAt: 2.6 },
   major: { r: 2.6, labelAt: 3.4 },
   観光: { r: 3.6, labelAt: 4 },
@@ -257,7 +257,7 @@ export default function JapanMap({
                 {pin.kind === '遺産' ? (
                   <rect x={xy[0] - r} y={xy[1] - r} width={r * 2} height={r * 2} transform={`rotate(45 ${xy[0]} ${xy[1]})`} style={{ strokeWidth: 1.2 * u }} />
                 ) : (
-                  <circle cx={xy[0]} cy={xy[1]} r={r} style={{ strokeWidth: (pin.kind === 'capital' ? 2 : 1.2) * u }} />
+                  <circle cx={xy[0]} cy={xy[1]} r={r} style={{ strokeWidth: (pin.kind === 'capital' ? 1.6 : 1.1) * u }} />
                 )}
                 {(t.k >= st.labelAt || active) && (
                   <text x={xy[0] + r + 3 * u} y={xy[1]} className="pin-label" style={{ fontSize: (pin.kind === 'capital' ? 12 : 11) * u, strokeWidth: 3 * u }}>

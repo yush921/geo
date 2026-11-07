@@ -5,8 +5,9 @@
  * 既に保存済みのファイルはダウンロードしない。
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import sharp from 'sharp';
+import { SPOTS } from '../src/data/jp/spots';
 
 const JSON_PATH = 'src/data/jp/wiki.generated.json';
 const DIR = 'public/photos';
@@ -31,8 +32,15 @@ async function main() {
   const data = JSON.parse(readFileSync(JSON_PATH, 'utf8'));
   let saved = 0;
   const failed: string[] = [];
+  // アプリで写真を使うのは観光地・遺産・名産品だけ(都市の写真は使わない)
+  const used = new Set(Object.values(SPOTS).flatMap((rows) => rows.map((r) => r[3] ?? r[1])));
+  const keep = new Set<string>();
   for (const [key, e] of Object.entries<any>(data)) {
     if (!e.image) continue;
+    if (!used.has(key)) {
+      delete e.image.src;
+      continue;
+    }
     const name = createHash('sha1').update(e.image.page).digest('hex').slice(0, 12) + '.webp';
     const path = `${DIR}/${name}`;
     if (!existsSync(path)) {
@@ -48,7 +56,10 @@ async function main() {
       }
     }
     e.image.src = `photos/${name}`;
+    keep.add(name);
   }
+  // 使われなくなった写真を削除
+  for (const f of readdirSync(DIR)) if (!keep.has(f)) unlinkSync(`${DIR}/${f}`);
   writeFileSync(JSON_PATH, JSON.stringify(data, null, 1) + '\n');
   console.log(`新規保存 ${saved}件`);
   if (failed.length) console.log('失敗:\n' + failed.join('\n'));
